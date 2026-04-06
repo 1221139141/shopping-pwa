@@ -21,9 +21,15 @@
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; min-height:100vh; min-height:100dvh; padding-bottom:env(safe-area-inset-bottom); }
 
-    .header { padding:20px 20px 0; }
-    .header h1 { font-family:var(--serif); font-size:22px; color:var(--text); }
-    .header p { font-size:11px; color:var(--text3); margin-top:2px; }
+    .header { padding:20px 20px 0; display:flex; align-items:center; justify-content:space-between; }
+    .header-left h1 { font-family:var(--serif); font-size:22px; color:var(--text); }
+    .header-left p { font-size:11px; color:var(--text3); margin-top:2px; }
+    .sync-status { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text3); cursor:pointer; padding:6px 12px; border-radius:8px; border:1px solid var(--border); background:none; font-family:var(--sans); -webkit-tap-highlight-color:transparent; }
+    .sync-dot { width:8px; height:8px; border-radius:50%; }
+    .sync-dot.connected { background:var(--success); }
+    .sync-dot.disconnected { background:var(--text3); }
+    .sync-dot.syncing { background:var(--p1); animation:pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
 
     .controls { display:flex; gap:8px; padding:16px 20px; flex-wrap:wrap; }
     .controls input, .controls select { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:13px; outline:none; }
@@ -61,13 +67,34 @@
     .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
     .toast.success { border-color:var(--success); }
     .toast.error { border-color:var(--danger); }
+
+    /* Modal sync config */
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:200; display:none; align-items:center; justify-content:center; }
+    .modal-bg.show { display:flex; }
+    .modal { background:var(--bg); border:1px solid var(--border); border-radius:16px; padding:28px 24px; width:90%; max-width:360px; }
+    .modal h2 { font-family:var(--serif); font-size:18px; margin-bottom:4px; }
+    .modal .sub { font-size:11px; color:var(--text3); margin-bottom:18px; }
+    .modal label { display:block; font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:0.07em; color:var(--text3); margin-bottom:5px; margin-top:12px; }
+    .modal input { width:100%; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-family:var(--sans); font-size:13px; outline:none; }
+    .modal input:focus { border-color:var(--p1); }
+    .modal-actions { display:flex; gap:8px; margin-top:18px; }
+    .modal-actions button { flex:1; padding:10px; border-radius:8px; font-family:var(--sans); font-size:13px; cursor:pointer; }
+    .btn-save { background:var(--p1); color:#fff8f2; border:none; font-weight:500; }
+    .btn-cancel { background:none; border:1px solid var(--border); color:var(--text2); }
+    .btn-disconnect { width:100%; margin-top:10px; padding:8px; background:none; border:1px solid var(--danger); border-radius:8px; color:var(--danger); font-size:12px; cursor:pointer; font-family:var(--sans); }
   </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Courses 🛒</h1>
-  <p>Liste partageable — fonctionne hors-ligne</p>
+  <div class="header-left">
+    <h1>Courses 🛒</h1>
+    <p>Liste partageable — fonctionne hors-ligne</p>
+  </div>
+  <button class="sync-status" id="sync-btn" onclick="openSyncModal()">
+    <div class="sync-dot disconnected" id="sync-dot"></div>
+    <span id="sync-label">Hors-ligne</span>
+  </button>
 </div>
 
 <div class="controls">
@@ -92,8 +119,6 @@
 
 <div class="actions">
   <button class="btn-sec" onclick="clearDone()">Retirer cochés</button>
-  <button class="btn-sec" onclick="exportList()">📤 Exporter</button>
-  <button class="btn-sec" onclick="importList()">📥 Importer</button>
 </div>
 
 <div class="recent" id="recent-section" style="display:none">
@@ -101,13 +126,35 @@
   <div class="recent-chips" id="recent-chips"></div>
 </div>
 
+<!-- Modal de configuration sync -->
+<div class="modal-bg" id="sync-modal">
+  <div class="modal">
+    <h2>Synchronisation</h2>
+    <div class="sub">Connectez deux téléphones à la même liste</div>
+    <label>Adresse du serveur</label>
+    <input type="url" id="cfg-url" placeholder="https://votre-serveur.deno.dev">
+    <label>Mot de passe partagé</label>
+    <input type="password" id="cfg-pwd" placeholder="Mot de passe commun">
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSyncModal()">Annuler</button>
+      <button class="btn-save" onclick="saveSyncConfig()">Connecter</button>
+    </div>
+    <button class="btn-disconnect" id="btn-disconnect" style="display:none" onclick="disconnectSync()">Déconnecter la synchro</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 const STORAGE_KEY = 'shopping_pwa_data';
+const SYNC_KEY = 'shopping_pwa_sync';
 const CAT_ORDER = ['Fruits & Légumes','Viandes & Poissons','Produits laitiers','Boulangerie','Épicerie','Surgelés','Boissons','Hygiène','Ménage','Autre'];
 
 let data = { items: [], recentItems: [] };
+let syncConfig = null; // { url, password }
+let syncInterval = null;
+
+// ── Storage local ──
 
 function load() {
   try {
@@ -115,11 +162,124 @@ function load() {
     if (raw) data = JSON.parse(raw);
     if (!data.recentItems) data.recentItems = [];
   } catch(e) { data = { items: [], recentItems: [] }; }
+
+  try {
+    const raw = localStorage.getItem(SYNC_KEY);
+    if (raw) syncConfig = JSON.parse(raw);
+  } catch(e) { syncConfig = null; }
 }
 
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
+
+// ── Sync ──
+
+function updateSyncUI(state) {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  dot.className = 'sync-dot ' + state;
+  if (state === 'connected') label.textContent = 'Connecté';
+  else if (state === 'syncing') label.textContent = 'Synchro…';
+  else label.textContent = 'Hors-ligne';
+}
+
+async function syncWithServer() {
+  if (!syncConfig) return;
+  try {
+    updateSyncUI('syncing');
+    // Envoyer la liste locale et recevoir la fusion
+    const res = await fetch(syncConfig.url + '/api/list', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Password': syncConfig.password },
+      body: JSON.stringify({ items: data.items, recentItems: data.recentItems })
+    });
+    if (res.status === 401) {
+      updateSyncUI('disconnected');
+      toast('Mot de passe sync incorrect', 'error');
+      return;
+    }
+    if (!res.ok) throw new Error('Erreur serveur');
+    const merged = await res.json();
+    data.items = merged.items || [];
+    data.recentItems = merged.recentItems || [];
+    save();
+    render();
+    updateSyncUI('connected');
+  } catch (e) {
+    updateSyncUI('disconnected');
+  }
+}
+
+async function pullFromServer() {
+  if (!syncConfig) return;
+  try {
+    updateSyncUI('syncing');
+    const res = await fetch(syncConfig.url + '/api/list', {
+      headers: { 'X-Password': syncConfig.password }
+    });
+    if (!res.ok) throw new Error('Erreur');
+    const serverData = await res.json();
+    if (serverData.updatedAt > (data.updatedAt || 0)) {
+      data.items = serverData.items || [];
+      data.recentItems = serverData.recentItems || [];
+      data.updatedAt = serverData.updatedAt;
+      save();
+      render();
+    }
+    updateSyncUI('connected');
+  } catch (e) {
+    updateSyncUI('disconnected');
+  }
+}
+
+function startSync() {
+  if (syncInterval) clearInterval(syncInterval);
+  if (!syncConfig) { updateSyncUI('disconnected'); return; }
+  syncWithServer(); // sync immédiat
+  syncInterval = setInterval(pullFromServer, 5000); // poll toutes les 5s
+}
+
+// ── Sync config modal ──
+
+function openSyncModal() {
+  document.getElementById('sync-modal').classList.add('show');
+  if (syncConfig) {
+    document.getElementById('cfg-url').value = syncConfig.url;
+    document.getElementById('cfg-pwd').value = syncConfig.password;
+    document.getElementById('btn-disconnect').style.display = '';
+  } else {
+    document.getElementById('cfg-url').value = '';
+    document.getElementById('cfg-pwd').value = '';
+    document.getElementById('btn-disconnect').style.display = 'none';
+  }
+}
+
+function closeSyncModal() {
+  document.getElementById('sync-modal').classList.remove('show');
+}
+
+function saveSyncConfig() {
+  const url = document.getElementById('cfg-url').value.trim().replace(/\/+$/, '');
+  const password = document.getElementById('cfg-pwd').value;
+  if (!url || !password) return toast('Remplissez les deux champs', 'error');
+  syncConfig = { url, password };
+  localStorage.setItem(SYNC_KEY, JSON.stringify(syncConfig));
+  closeSyncModal();
+  startSync();
+  toast('Synchro activée', 'success');
+}
+
+function disconnectSync() {
+  syncConfig = null;
+  localStorage.removeItem(SYNC_KEY);
+  if (syncInterval) clearInterval(syncInterval);
+  updateSyncUI('disconnected');
+  closeSyncModal();
+  toast('Synchro désactivée', 'success');
+}
+
+// ── Articles ──
 
 function addItem() {
   const name = document.getElementById('inp-name').value.trim();
@@ -129,14 +289,14 @@ function addItem() {
   if (data.items.some(i => i.name.toLowerCase() === name.toLowerCase() && !i.checked)) {
     return toast('Déjà dans la liste', 'error');
   }
-  data.items.push({ id: Date.now().toString(), name, qty: qty || '', category: cat, checked: false });
+  data.items.push({ id: Date.now().toString(), name, qty: qty || '', category: cat, checked: false, updatedAt: Date.now() });
   if (!data.recentItems.some(r => r.name.toLowerCase() === name.toLowerCase())) {
     data.recentItems.unshift({ name, category: cat });
     if (data.recentItems.length > 20) data.recentItems.pop();
   }
   document.getElementById('inp-name').value = '';
   document.getElementById('inp-qty').value = '';
-  save(); render();
+  save(); render(); syncWithServer();
   toast('Ajouté', 'success');
 }
 
@@ -144,66 +304,31 @@ function addFromRecent(name, cat) {
   if (data.items.some(i => i.name.toLowerCase() === name.toLowerCase() && !i.checked)) {
     return toast('Déjà dans la liste', 'error');
   }
-  data.items.push({ id: Date.now().toString(), name, qty: '', category: cat, checked: false });
-  save(); render();
+  data.items.push({ id: Date.now().toString(), name, qty: '', category: cat, checked: false, updatedAt: Date.now() });
+  save(); render(); syncWithServer();
   toast(name + ' ajouté', 'success');
 }
 
 function toggle(id) {
   const item = data.items.find(i => i.id === id);
-  if (item) item.checked = !item.checked;
-  save(); render();
+  if (item) { item.checked = !item.checked; item.updatedAt = Date.now(); }
+  save(); render(); syncWithServer();
 }
 
 function del(id) {
   data.items = data.items.filter(i => i.id !== id);
-  save(); render();
+  save(); render(); syncWithServer();
 }
 
 function clearDone() {
   const n = data.items.filter(i => i.checked).length;
   if (!n) return toast('Aucun article coché', 'error');
   data.items = data.items.filter(i => !i.checked);
-  save(); render();
+  save(); render(); syncWithServer();
   toast(n + ' retiré(s)', 'success');
 }
 
-function exportList() {
-  const blob = new Blob([JSON.stringify({ items: data.items, exportedAt: new Date().toISOString() }, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'liste_courses.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  toast('Exporté', 'success');
-}
-
-function importList() {
-  const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = '.json';
-  inp.onchange = () => {
-    const file = inp.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(reader.result);
-        if (!parsed.items || !Array.isArray(parsed.items)) return toast('Format invalide', 'error');
-        const existing = new Set(data.items.map(i => i.name.toLowerCase()));
-        let added = 0;
-        parsed.items.forEach(item => {
-          if (!existing.has(item.name.toLowerCase())) {
-            data.items.push({ id: Date.now().toString() + (added++), name: item.name, qty: item.qty || '', category: item.category || 'Autre', checked: false });
-          }
-        });
-        save(); render();
-        toast(added + ' importé(s)', 'success');
-      } catch(e) { toast('Fichier invalide', 'error'); }
-    };
-    reader.readAsText(file);
-  };
-  inp.click();
-}
+// ── Render ──
 
 function render() {
   const el = document.getElementById('list');
@@ -241,7 +366,6 @@ function render() {
     el.innerHTML = html;
   }
 
-  // récents
   const section = document.getElementById('recent-section');
   const active = new Set(data.items.filter(i => !i.checked).map(i => i.name.toLowerCase()));
   const avail = data.recentItems.filter(r => !active.has(r.name.toLowerCase()));
@@ -265,14 +389,13 @@ function toast(msg, type) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
 }
 
-// Enter pour ajouter
 document.getElementById('inp-name').addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
 
 // Init
 load();
 render();
+startSync();
 
-// Service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
 }
