@@ -138,7 +138,7 @@
 <div class="header">
   <div class="header-left">
     <h1>Courses 🛒</h1>
-    <div class="presence-bar" id="presence-bar"></div>
+    <div class="presence-bar" id="presence-bar">Chargement...</div>
   </div>
   <button class="sync-status" id="sync-btn" onclick="openSyncModal()">
     <div class="sync-dot disconnected" id="sync-dot"></div>
@@ -262,6 +262,7 @@ async function syncWithServer() {
     save();
     render();
     updateSyncUI('connected');
+    sendPresence();
   } catch (e) {
     updateSyncUI('disconnected');
   }
