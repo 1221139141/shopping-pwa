@@ -156,6 +156,7 @@
 
 <div class="actions">
   <button class="btn-sec" onclick="clearDone()">Retirer cochés</button>
+  <button class="btn-sec" id="change-identity-btn" onclick="changeIdentity()"></button>
   <button class="btn-sec" onclick="finishShopping()" style="background:var(--success);color:#fff;border-color:var(--success)">Courses terminées !</button>
 </div>
 
@@ -573,7 +574,19 @@ function chooseIdentity(name) {
   currentUser = { name, emoji };
   localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
   document.getElementById('identity-screen').style.display = 'none';
+  updateIdentityBtn();
   startPresence();
+}
+
+function changeIdentity() {
+  document.getElementById('identity-screen').style.display = 'flex';
+}
+
+function updateIdentityBtn() {
+  const btn = document.getElementById('change-identity-btn');
+  if (currentUser) {
+    btn.textContent = `${currentUser.emoji} ${currentUser.name} — changer`;
+  }
 }
 
 function getUserEmoji(name) {
@@ -630,6 +643,8 @@ function startPresence() {
 loadIdentity();
 if (!currentUser) {
   document.getElementById('identity-screen').style.display = 'flex';
+} else {
+  updateIdentityBtn();
 }
 load();
 render();
