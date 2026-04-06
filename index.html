@@ -100,18 +100,6 @@
 <div class="controls">
   <input type="text" id="inp-name" class="input-name" placeholder="Ajouter un article…" enterkeyhint="done">
   <input type="text" id="inp-qty" class="input-qty" placeholder="Qté">
-  <select id="inp-cat" class="select-cat">
-    <option value="Fruits & Légumes">Fruits & Légumes</option>
-    <option value="Viandes & Poissons">Viandes & Poissons</option>
-    <option value="Produits laitiers">Produits laitiers</option>
-    <option value="Boulangerie">Boulangerie</option>
-    <option value="Épicerie">Épicerie</option>
-    <option value="Surgelés">Surgelés</option>
-    <option value="Boissons">Boissons</option>
-    <option value="Hygiène">Hygiène</option>
-    <option value="Ménage">Ménage</option>
-    <option value="Autre">Autre</option>
-  </select>
   <button class="btn-add" onclick="addItem()">+</button>
 </div>
 
@@ -148,8 +136,6 @@
 <script>
 const STORAGE_KEY = 'shopping_pwa_data';
 const SYNC_KEY = 'shopping_pwa_sync';
-const CAT_ORDER = ['Fruits & Légumes','Viandes & Poissons','Produits laitiers','Boulangerie','Épicerie','Surgelés','Boissons','Hygiène','Ménage','Autre'];
-
 let data = { items: [], recentItems: [] };
 let syncConfig = null; // { url, password }
 let syncInterval = null;
@@ -285,13 +271,12 @@ function addItem() {
   const name = document.getElementById('inp-name').value.trim();
   if (!name) return;
   const qty = document.getElementById('inp-qty').value.trim();
-  const cat = document.getElementById('inp-cat').value;
   if (data.items.some(i => i.name.toLowerCase() === name.toLowerCase() && !i.checked)) {
     return toast('Déjà dans la liste', 'error');
   }
-  data.items.push({ id: Date.now().toString(), name, qty: qty || '', category: cat, checked: false, updatedAt: Date.now() });
+  data.items.push({ id: Date.now().toString(), name, qty: qty || '', checked: false, updatedAt: Date.now() });
   if (!data.recentItems.some(r => r.name.toLowerCase() === name.toLowerCase())) {
-    data.recentItems.unshift({ name, category: cat });
+    data.recentItems.unshift({ name });
     if (data.recentItems.length > 20) data.recentItems.pop();
   }
   document.getElementById('inp-name').value = '';
@@ -300,11 +285,11 @@ function addItem() {
   toast('Ajouté', 'success');
 }
 
-function addFromRecent(name, cat) {
+function addFromRecent(name) {
   if (data.items.some(i => i.name.toLowerCase() === name.toLowerCase() && !i.checked)) {
     return toast('Déjà dans la liste', 'error');
   }
-  data.items.push({ id: Date.now().toString(), name, qty: '', category: cat, checked: false, updatedAt: Date.now() });
+  data.items.push({ id: Date.now().toString(), name, qty: '', checked: false, updatedAt: Date.now() });
   save(); render(); syncWithServer();
   toast(name + ' ajouté', 'success');
 }
@@ -339,19 +324,14 @@ function render() {
     el.innerHTML = '<div class="empty"><span>🛒</span>Votre liste est vide</div>';
   } else {
     let html = '';
-    const grouped = {};
-    CAT_ORDER.forEach(c => { const items = unchecked.filter(i => i.category === c); if (items.length) grouped[c] = items; });
-    for (const [cat, items] of Object.entries(grouped)) {
-      html += `<div class="cat-header">${cat}</div>`;
-      items.forEach(i => {
-        html += `<div class="item">
-          <button class="check" onclick="toggle('${i.id}')"></button>
-          <div class="item-name">${getEmoji(i.name)} ${esc(i.name)}</div>
-          ${i.qty ? `<span class="item-qty">${esc(i.qty)}</span>` : ''}
-          <button class="item-del" onclick="del('${i.id}')">×</button>
-        </div>`;
-      });
-    }
+    unchecked.forEach(i => {
+      html += `<div class="item">
+        <button class="check" onclick="toggle('${i.id}')"></button>
+        <div class="item-name">${getEmoji(i.name)} ${esc(i.name)}</div>
+        ${i.qty ? `<span class="item-qty">${esc(i.qty)}</span>` : ''}
+        <button class="item-del" onclick="del('${i.id}')">×</button>
+      </div>`;
+    });
     if (checked.length) {
       html += `<div class="cat-header">Fait</div>`;
       checked.forEach(i => {
@@ -372,7 +352,7 @@ function render() {
   if (avail.length) {
     section.style.display = '';
     document.getElementById('recent-chips').innerHTML = avail.map(r =>
-      `<button class="chip" onclick="addFromRecent('${esc(r.name.replace(/'/g,"\\'"))}','${r.category}')">${esc(r.name)}</button>`
+      `<button class="chip" onclick="addFromRecent('${esc(r.name.replace(/'/g,"\\'"))}')">${getEmoji(r.name)} ${esc(r.name)}</button>`
     ).join('');
   } else {
     section.style.display = 'none';
