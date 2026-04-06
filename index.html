@@ -626,7 +626,15 @@ async function fetchPresence() {
 
 function renderPresence(active) {
   const bar = document.getElementById('presence-bar');
-  if (!active || !active.length) { bar.innerHTML = ''; return; }
+  if (!active || !active.length) {
+    // Afficher au moins l'utilisateur actuel
+    if (currentUser) {
+      bar.innerHTML = `<span class="presence-badge me">${currentUser.emoji} ${currentUser.name} (vous)</span>`;
+    } else {
+      bar.innerHTML = '';
+    }
+    return;
+  }
   bar.innerHTML = active.map(u => {
     const isMe = currentUser && u.user === currentUser.name;
     return `<span class="presence-badge ${isMe ? 'me' : 'online'}">${getUserEmoji(u.user)} ${u.user}${isMe ? ' (vous)' : ''}</span>`;
@@ -646,6 +654,7 @@ if (!currentUser) {
   document.getElementById('identity-screen').style.display = 'flex';
 } else {
   updateIdentityBtn();
+  renderPresence([]);
 }
 load();
 render();
