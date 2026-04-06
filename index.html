@@ -138,7 +138,7 @@
 <div class="header">
   <div class="header-left">
     <h1>Courses 🛒</h1>
-    <div class="presence-bar" id="presence-bar">Chargement...</div>
+    <div class="presence-bar" id="presence-bar"></div>
   </div>
   <button class="sync-status" id="sync-btn" onclick="openSyncModal()">
     <div class="sync-dot disconnected" id="sync-dot"></div>
@@ -247,7 +247,7 @@ async function syncWithServer() {
     // Envoyer la liste locale et recevoir la fusion
     const res = await fetch(syncConfig.url + '/api/list', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Password': syncConfig.password },
+      headers: { 'Content-Type': 'application/json', 'X-Password': syncConfig.password, 'X-User': currentUser?.name || '' },
       body: JSON.stringify({ items: data.items, recentItems: data.recentItems })
     });
     if (res.status === 401) {
@@ -259,10 +259,10 @@ async function syncWithServer() {
     const merged = await res.json();
     data.items = merged.items || [];
     data.recentItems = merged.recentItems || [];
+    if (merged.presence) renderPresence(merged.presence);
     save();
     render();
     updateSyncUI('connected');
-    sendPresence();
   } catch (e) {
     updateSyncUI('disconnected');
   }
@@ -273,7 +273,7 @@ async function pullFromServer() {
   try {
     updateSyncUI('syncing');
     const res = await fetch(syncConfig.url + '/api/list', {
-      headers: { 'X-Password': syncConfig.password }
+      headers: { 'X-Password': syncConfig.password, 'X-User': currentUser?.name || '' }
     });
     if (!res.ok) throw new Error('Erreur');
     const serverData = await res.json();
@@ -284,7 +284,7 @@ async function pullFromServer() {
       save();
       render();
     }
-    fetchPresence();
+    if (serverData.presence) renderPresence(serverData.presence);
     updateSyncUI('connected');
   } catch (e) {
     updateSyncUI('disconnected');
@@ -611,6 +611,7 @@ async function sendPresence() {
   } catch(e) {}
 }
 
+
 async function fetchPresence() {
   if (!syncConfig) return;
   try {
@@ -626,15 +627,7 @@ async function fetchPresence() {
 
 function renderPresence(active) {
   const bar = document.getElementById('presence-bar');
-  if (!active || !active.length) {
-    // Afficher au moins l'utilisateur actuel
-    if (currentUser) {
-      bar.innerHTML = `<span class="presence-badge me">${currentUser.emoji} ${currentUser.name} (vous)</span>`;
-    } else {
-      bar.innerHTML = '';
-    }
-    return;
-  }
+  if (!active || !active.length) { bar.innerHTML = ''; return; }
   bar.innerHTML = active.map(u => {
     const isMe = currentUser && u.user === currentUser.name;
     return `<span class="presence-badge ${isMe ? 'me' : 'online'}">${getUserEmoji(u.user)} ${u.user}${isMe ? ' (vous)' : ''}</span>`;
@@ -654,7 +647,6 @@ if (!currentUser) {
   document.getElementById('identity-screen').style.display = 'flex';
 } else {
   updateIdentityBtn();
-  renderPresence([]);
 }
 load();
 render();
