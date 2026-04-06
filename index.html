@@ -346,7 +346,7 @@ function render() {
       items.forEach(i => {
         html += `<div class="item">
           <button class="check" onclick="toggle('${i.id}')"></button>
-          <div class="item-name">${esc(i.name)}</div>
+          <div class="item-name">${getEmoji(i.name)} ${esc(i.name)}</div>
           ${i.qty ? `<span class="item-qty">${esc(i.qty)}</span>` : ''}
           <button class="item-del" onclick="del('${i.id}')">×</button>
         </div>`;
@@ -357,7 +357,7 @@ function render() {
       checked.forEach(i => {
         html += `<div class="item">
           <button class="check done" onclick="toggle('${i.id}')">✓</button>
-          <div class="item-name done">${esc(i.name)}</div>
+          <div class="item-name done">${getEmoji(i.name)} ${esc(i.name)}</div>
           ${i.qty ? `<span class="item-qty">${esc(i.qty)}</span>` : ''}
           <button class="item-del" onclick="del('${i.id}')">×</button>
         </div>`;
@@ -380,6 +380,69 @@ function render() {
 }
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+const EMOJI_MAP = [
+  // Fruits
+  ['pomme', '🍎'], ['banane', '🍌'], ['orange', '🍊'], ['citron', '🍋'], ['raisin', '🍇'],
+  ['fraise', '🍓'], ['cerise', '🍒'], ['pêche', '🍑'], ['mangue', '🥭'], ['ananas', '🍍'],
+  ['pastèque', '🍉'], ['melon', '🍈'], ['kiwi', '🥝'], ['poire', '🍐'], ['myrtille', '🫐'],
+  ['coco', '🥥'], ['avocat', '🥑'], ['abricot', '🍑'], ['framboise', '🍓'], ['clémentine', '🍊'],
+  // Légumes
+  ['salade', '🥗'], ['tomate', '🍅'], ['carotte', '🥕'], ['brocoli', '🥦'], ['maïs', '🌽'],
+  ['pomme de terre', '🥔'], ['patate', '🥔'], ['oignon', '🧅'], ['ail', '🧄'],
+  ['aubergine', '🍆'], ['concombre', '🥒'], ['poivron', '🫑'], ['champignon', '🍄'],
+  ['haricot', '🫘'], ['petit pois', '🫛'], ['épinard', '🥬'], ['chou', '🥬'], ['courgette', '🥒'],
+  ['laitue', '🥬'], ['radis', '🥕'], ['betterave', '🥕'], ['artichaut', '🥬'], ['céleri', '🥬'],
+  ['poireau', '🥬'], ['navet', '🥔'], ['endive', '🥬'],
+  // Viandes & Poissons
+  ['viande', '🥩'], ['boeuf', '🥩'], ['bœuf', '🥩'], ['steak', '🥩'], ['poulet', '🍗'],
+  ['dinde', '🍗'], ['porc', '🥓'], ['bacon', '🥓'], ['jambon', '🥓'], ['saucisse', '🌭'],
+  ['merguez', '🌭'], ['poisson', '🐟'], ['saumon', '🍣'], ['thon', '🐟'], ['crevette', '🦐'],
+  ['moule', '🦪'], ['huître', '🦪'], ['crabe', '🦀'], ['sardine', '🐟'], ['cabillaud', '🐟'],
+  ['truite', '🐟'], ['agneau', '🥩'], ['veau', '🥩'], ['canard', '🦆'], ['lapin', '🐇'],
+  ['côtelette', '🥩'], ['escalope', '🥩'], ['hachis', '🥩'], ['steak haché', '🥩'],
+  // Produits laitiers
+  ['lait', '🥛'], ['fromage', '🧀'], ['beurre', '🧈'], ['yaourt', '🥛'], ['yogourt', '🥛'],
+  ['crème', '🥛'], ['oeuf', '🥚'], ['œuf', '🥚'], ['mozzarella', '🧀'], ['gruyère', '🧀'],
+  ['camembert', '🧀'], ['comté', '🧀'], ['emmental', '🧀'], ['chèvre', '🧀'],
+  // Boulangerie
+  ['pain', '🍞'], ['baguette', '🥖'], ['croissant', '🥐'], ['brioche', '🥐'], ['gâteau', '🎂'],
+  ['tarte', '🥧'], ['viennoiserie', '🥐'], ['muffin', '🧁'], ['cookie', '🍪'], ['biscuit', '🍪'],
+  ['crêpe', '🥞'], ['pain de mie', '🍞'], ['farine', '🌾'],
+  // Épicerie
+  ['riz', '🍚'], ['pâtes', '🍝'], ['nouille', '🍜'], ['céréales', '🥣'], ['sucre', '🍬'],
+  ['sel', '🧂'], ['huile', '🫒'], ['vinaigre', '🫙'], ['sauce', '🥫'], ['ketchup', '🥫'],
+  ['moutarde', '🟡'], ['mayonnaise', '🥫'], ['confiture', '🍯'], ['miel', '🍯'],
+  ['chocolat', '🍫'], ['café', '☕'], ['thé', '🍵'], ['conserve', '🥫'], ['soupe', '🍲'],
+  ['épice', '🌶️'], ['piment', '🌶️'], ['poivre', '🌶️'], ['curry', '🍛'],
+  ['spaghetti', '🍝'], ['couscous', '🍚'], ['quinoa', '🍚'], ['lentille', '🫘'],
+  ['noisette', '🌰'], ['noix', '🥜'], ['amande', '🥜'], ['cacahuète', '🥜'],
+  // Surgelés
+  ['glace', '🍦'], ['pizza', '🍕'], ['surgelé', '🧊'], ['glaçon', '🧊'], ['sorbet', '🍨'],
+  // Boissons
+  ['eau', '💧'], ['jus', '🧃'], ['soda', '🥤'], ['coca', '🥤'], ['bière', '🍺'],
+  ['vin', '🍷'], ['champagne', '🥂'], ['limonade', '🍋'], ['smoothie', '🥤'],
+  ['sirop', '🧃'], ['lait', '🥛'], ['whisky', '🥃'], ['rhum', '🥃'], ['vodka', '🥃'],
+  // Hygiène
+  ['savon', '🧴'], ['shampoing', '🧴'], ['shampooing', '🧴'], ['dentifrice', '🪥'],
+  ['brosse à dent', '🪥'], ['papier toilette', '🧻'], ['mouchoir', '🤧'], ['déodorant', '🧴'],
+  ['rasoir', '🪒'], ['coton', '🧻'], ['serviette', '🧻'], ['couche', '🧒'],
+  // Ménage
+  ['éponge', '🧽'], ['lessive', '🧺'], ['javel', '🧴'], ['sac poubelle', '🗑️'],
+  ['sopalin', '🧻'], ['essuie-tout', '🧻'], ['produit', '🧹'], ['balai', '🧹'],
+  // Divers
+  ['bonbon', '🍬'], ['chips', '🍟'], ['frite', '🍟'], ['sandwich', '🥪'], ['wrap', '🌯'],
+  ['sushi', '🍣'], ['burger', '🍔'], ['hot-dog', '🌭'], ['pop-corn', '🍿'],
+  ['bougie', '🕯️'], ['pile', '🔋'], ['ampoule', '💡'],
+];
+
+function getEmoji(name) {
+  const lower = name.toLowerCase();
+  for (const [keyword, emoji] of EMOJI_MAP) {
+    if (lower.includes(keyword)) return emoji;
+  }
+  return '🛒';
+}
 
 let toastTimer;
 function toast(msg, type) {
