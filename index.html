@@ -93,14 +93,44 @@
     .emoji-grid-items button:active { background:var(--bg3); }
     .emoji-input { width:100%; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:18px; text-align:center; margin-bottom:10px; outline:none; }
     .emoji-input:focus { border-color:var(--p1); }
+
+    /* Identity */
+    .identity-screen { position:fixed; inset:0; background:var(--bg); z-index:300; display:flex; align-items:center; justify-content:center; }
+    .identity-card { text-align:center; padding:40px; }
+    .identity-card h2 { font-family:var(--serif); font-size:22px; margin-bottom:6px; }
+    .identity-card p { font-size:12px; color:var(--text3); margin-bottom:30px; }
+    .identity-buttons { display:flex; gap:16px; justify-content:center; }
+    .identity-btn { padding:20px 30px; border:2px solid var(--border); border-radius:16px; background:var(--bg2); cursor:pointer; font-size:14px; font-family:var(--sans); color:var(--text); -webkit-tap-highlight-color:transparent; transition:all 0.2s; display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .identity-btn:active { border-color:var(--p1); background:var(--p1-light); }
+    .identity-btn span { font-size:36px; }
+
+    /* Presence bar */
+    .presence-bar { padding:8px 20px; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); }
+    .presence-users { display:flex; gap:6px; }
+    .presence-badge { padding:3px 10px; border-radius:12px; font-size:11px; font-weight:500; }
+    .presence-badge.online { background:rgba(90,128,80,0.15); color:var(--success); }
+    .presence-badge.me { background:var(--p1-light); color:var(--p1); }
+    .added-by { font-size:9px; color:var(--text3); margin-left:4px; }
   </style>
 </head>
 <body>
 
+<!-- Écran d'identité -->
+<div class="identity-screen" id="identity-screen" style="display:none">
+  <div class="identity-card">
+    <h2>Qui êtes-vous ?</h2>
+    <p>Pour savoir qui ajoute quoi</p>
+    <div class="identity-buttons">
+      <button class="identity-btn" onclick="chooseIdentity('Ugo')"><span>👨</span>Ugo</button>
+      <button class="identity-btn" onclick="chooseIdentity('Chenda')"><span>👩</span>Chenda</button>
+    </div>
+  </div>
+</div>
+
 <div class="header">
   <div class="header-left">
     <h1>Courses 🛒</h1>
-    <p>Liste partageable — fonctionne hors-ligne</p>
+    <div class="presence-bar" id="presence-bar"></div>
   </div>
   <button class="sync-status" id="sync-btn" onclick="openSyncModal()">
     <div class="sync-dot disconnected" id="sync-dot"></div>
@@ -156,6 +186,10 @@
 <script>
 const STORAGE_KEY = 'shopping_pwa_data';
 const SYNC_KEY = 'shopping_pwa_sync';
+const USER_KEY = 'shopping_pwa_user';
+
+let currentUser = null; // { name: 'Ugo' | 'Chenda', emoji: '👨' | '👩' }
+let presenceInterval = null;
 let data = { items: [], recentItems: [] };
 let syncConfig = null; // { url, password }
 let syncInterval = null;
@@ -233,6 +267,7 @@ async function pullFromServer() {
       save();
       render();
     }
+    fetchPresence();
     updateSyncUI('connected');
   } catch (e) {
     updateSyncUI('disconnected');
@@ -273,6 +308,7 @@ function saveSyncConfig() {
   localStorage.setItem(SYNC_KEY, JSON.stringify(syncConfig));
   closeSyncModal();
   startSync();
+  startPresence();
   toast('Synchro activée', 'success');
 }
 
@@ -294,7 +330,7 @@ function addItem() {
   if (data.items.some(i => i.name.toLowerCase() === name.toLowerCase() && !i.checked)) {
     return toast('Déjà dans la liste', 'error');
   }
-  data.items.push({ id: Date.now().toString(), name, qty: qty || '', checked: false, updatedAt: Date.now() });
+  data.items.push({ id: Date.now().toString(), name, qty: qty || '', checked: false, updatedAt: Date.now(), addedBy: currentUser?.name || '?' });
   if (!data.recentItems.some(r => r.name.toLowerCase() === name.toLowerCase())) {
     data.recentItems.unshift({ name });
     if (data.recentItems.length > 20) data.recentItems.pop();
@@ -309,7 +345,7 @@ function addFromRecent(name) {
   if (data.items.some(i => i.name.toLowerCase() === name.toLowerCase() && !i.checked)) {
     return toast('Déjà dans la liste', 'error');
   }
-  data.items.push({ id: Date.now().toString(), name, qty: '', checked: false, updatedAt: Date.now() });
+  data.items.push({ id: Date.now().toString(), name, qty: '', checked: false, updatedAt: Date.now(), addedBy: currentUser?.name || '?' });
   save(); render(); syncWithServer();
   toast(name + ' ajouté', 'success');
 }
@@ -348,7 +384,7 @@ function render() {
       html += `<div class="item">
         <button class="check" onclick="toggle('${i.id}')"></button>
         <span class="item-emoji" onclick="openEmojiPicker('${i.id}')">${itemEmoji(i)}</span>
-        <div class="item-name">${esc(i.name)}</div>
+        <div class="item-name">${esc(i.name)}${i.addedBy ? `<span class="added-by">${getUserEmoji(i.addedBy)} ${i.addedBy}</span>` : ''}</div>
         ${i.qty ? `<span class="item-qty">${esc(i.qty)}</span>` : ''}
         <button class="item-del" onclick="del('${i.id}')">×</button>
       </div>`;
@@ -490,10 +526,82 @@ function toast(msg, type) {
 
 document.getElementById('inp-name').addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
 
+// ── Identité ──
+
+function loadIdentity() {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    if (raw) currentUser = JSON.parse(raw);
+  } catch(e) { currentUser = null; }
+}
+
+function chooseIdentity(name) {
+  const emoji = name === 'Ugo' ? '👨' : '👩';
+  currentUser = { name, emoji };
+  localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+  document.getElementById('identity-screen').style.display = 'none';
+  startPresence();
+}
+
+function getUserEmoji(name) {
+  return name === 'Ugo' ? '👨' : name === 'Chenda' ? '👩' : '👤';
+}
+
+// ── Présence ──
+
+async function sendPresence() {
+  if (!syncConfig || !currentUser) return;
+  try {
+    const res = await fetch(syncConfig.url + '/api/presence', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Password': syncConfig.password },
+      body: JSON.stringify({ user: currentUser.name })
+    });
+    if (res.ok) {
+      const { active } = await res.json();
+      renderPresence(active);
+    }
+  } catch(e) {}
+}
+
+async function fetchPresence() {
+  if (!syncConfig) return;
+  try {
+    const res = await fetch(syncConfig.url + '/api/presence', {
+      headers: { 'X-Password': syncConfig.password }
+    });
+    if (res.ok) {
+      const { active } = await res.json();
+      renderPresence(active);
+    }
+  } catch(e) {}
+}
+
+function renderPresence(active) {
+  const bar = document.getElementById('presence-bar');
+  if (!active || !active.length) { bar.innerHTML = ''; return; }
+  bar.innerHTML = active.map(u => {
+    const isMe = currentUser && u.user === currentUser.name;
+    return `<span class="presence-badge ${isMe ? 'me' : 'online'}">${getUserEmoji(u.user)} ${u.user}${isMe ? ' (vous)' : ''}</span>`;
+  }).join('');
+}
+
+function startPresence() {
+  if (presenceInterval) clearInterval(presenceInterval);
+  if (!syncConfig || !currentUser) return;
+  sendPresence();
+  presenceInterval = setInterval(sendPresence, 10000); // toutes les 10s
+}
+
 // Init
+loadIdentity();
+if (!currentUser) {
+  document.getElementById('identity-screen').style.display = 'flex';
+}
 load();
 render();
 startSync();
+startPresence();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
