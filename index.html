@@ -547,7 +547,7 @@ function finishShopping() {
   for (let i = 0; i < 30; i++) {
     const drop = document.createElement('div');
     drop.textContent = '🤤';
-    drop.style.cssText = `position:fixed;top:-50px;font-size:${24+Math.random()*20}px;z-index:260;pointer-events:none;animation:emojiRain ${2+Math.random()*2}s linear forwards;left:${Math.random()*100}vw;animation-delay:${Math.random()*1.5}s;opacity:0;`;
+    drop.style.cssText = `position:fixed;top:-50px;font-size:${24+Math.random()*20}px;z-index:260;pointer-events:none;animation:emojiRain ${2+Math.random()*2}s ${Math.random()*1.5}s linear both;left:${Math.random()*100}vw;`;
     overlay.appendChild(drop);
   }
 }
