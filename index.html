@@ -128,8 +128,8 @@
     <h2>Qui êtes-vous ?</h2>
     <p>Pour savoir qui ajoute quoi</p>
     <div class="identity-buttons">
-      <button class="identity-btn" onclick="chooseIdentity('Ugo')"><span>👨</span>Ugo</button>
-      <button class="identity-btn" onclick="chooseIdentity('Chenda')"><span>👩</span>Chenda</button>
+      <button class="identity-btn" onclick="chooseIdentity('Ugo')"><span>👨🏾</span>Ugo</button>
+      <button class="identity-btn" onclick="chooseIdentity('Chenda')"><span>👩🏾</span>Chenda</button>
     </div>
   </div>
 </div>
@@ -203,7 +203,7 @@ const STORAGE_KEY = 'shopping_pwa_data';
 const SYNC_KEY = 'shopping_pwa_sync';
 const USER_KEY = 'shopping_pwa_user';
 
-let currentUser = null; // { name: 'Ugo' | 'Chenda', emoji: '👨' | '👩' }
+let currentUser = null; // { name: 'Ugo' | 'Chenda', emoji: '👨🏾' | '👩🏾' }
 let presenceInterval = null;
 let data = { items: [], recentItems: [] };
 let syncConfig = null; // { url, password }
@@ -559,7 +559,7 @@ function loadIdentity() {
 }
 
 function chooseIdentity(name) {
-  const emoji = name === 'Ugo' ? '👨' : '👩';
+  const emoji = name === 'Ugo' ? '👨🏾' : '👩🏾';
   currentUser = { name, emoji };
   localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
   document.getElementById('identity-screen').style.display = 'none';
@@ -567,7 +567,7 @@ function chooseIdentity(name) {
 }
 
 function getUserEmoji(name) {
-  return name === 'Ugo' ? '👨' : name === 'Chenda' ? '👩' : '👤';
+  return name === 'Ugo' ? '👨🏾' : name === 'Chenda' ? '👩🏾' : '👤';
 }
 
 // ── Présence ──
